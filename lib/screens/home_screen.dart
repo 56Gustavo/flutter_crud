@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/image_item.dart';
 import '../widgets/image_card.dart';
 import 'package:uuid/uuid.dart';
+import 'view_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<ImageItem> _images = [];
   final TextEditingController _urlController = TextEditingController();
   final uuid = const Uuid();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -64,17 +66,30 @@ class _HomeScreenState extends State<HomeScreen> {
         final reader = html.FileReader();
         reader.readAsDataUrl(file);
         reader.onLoadEnd.listen((e) {
+          final fileName = file.name.split('.').first;
           setState(() {
             _images.add(ImageItem(
               id: uuid.v4(),
               imageUrl: reader.result as String,
-              description: null,
+              description: fileName,
             ));
           });
           _saveImages();
         });
       }
     });
+  }
+
+  List<ImageItem> get _filteredImages {
+    if (_searchQuery.isEmpty) return _images;
+    return _images.where((img) => img.description?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false).toList();
+  }
+
+  void _navigateToViewScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ViewScreen(images: _images)),
+    );
   }
 
   void _editImage(ImageItem item, String newDescription) {
@@ -99,30 +114,35 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Galeria de Imagens')),
+      appBar: AppBar(
+        title: const Text('Galeria de Imagens'),
+        actions: [
+          IconButton(
+            onPressed: _navigateToViewScreen,
+            icon: const Icon(Icons.view_list, size: 28),
+            tooltip: 'Visualizar Imagens',
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(children: [
           Row(
             children: [
-              IconButton(
-                onPressed: _pickImageFromDevice,
-                icon: const Icon(Icons.image),
-                tooltip: 'Adicionar imagem do computador',
-              ),
               Expanded(
                 child: TextField(
-                  controller: _urlController,
+                  onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: const InputDecoration(
-                    labelText: 'Inserir URL da imagem',
+                    labelText: 'Buscar por descrição',
                     border: OutlineInputBorder(),
                   ),
-                  onSubmitted: (_) => _addImageFromUrl(),
                 ),
               ),
+              const SizedBox(width: 8),
               IconButton(
-                onPressed: _addImageFromUrl,
-                icon: const Icon(Icons.add),
+                onPressed: _pickImageFromDevice,
+                icon: const Icon(Icons.add_photo_alternate, size: 28),
+                tooltip: 'Adicionar imagem do computador',
               ),
             ],
           ),
@@ -130,9 +150,9 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                int crossAxisCount = constraints.maxWidth < 600 ? 3 : 5;
+                int crossAxisCount = constraints.maxWidth < 600 ? 2 : 4;
                 return GridView.builder(
-                  itemCount: _images.length,
+                  itemCount: _filteredImages.length,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: 10,
@@ -140,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     childAspectRatio: 3 / 4,
                   ),
                   itemBuilder: (ctx, i) {
-                    final item = _images[i];
+                    final item = _filteredImages[i];
                     return ImageCard(
                       item: item,
                       onDelete: () => _deleteImage(item.id),
